@@ -30,6 +30,10 @@
 | TRAP-06 | 全角千分位 | 静默错算或丢失证据 | 显式归一与原因裁决 | `app/modules/conversion/rules.py` | `tests/test_conversion.py::test_fullwidth_thousands` |
 | TRAP-10 | 金额半分舍入 | 静默错算或丢失证据 | 显式归一与原因裁决 | `app/modules/auction/rules.py` | `tests/test_auction.py::test_half_cent_rounding` |
 | TRAP-26 | 陈旧更正分支 | 静默错算或丢失证据 | 显式归一与原因裁决 | `app/modules/correction/rules.py` | `tests/test_correction.py::test_stale_branch` |
+| TRAP-27 | 同批次补发改票 | 直接覆盖丢原依据；另起批次产生两张可付账 | 源包登记 + 逐票比对 + 唯一封存指针 | `app/close.py`、`app/store.py` | `tests/test_batch.py` |
+| TRAP-28 | 补发重试 | 重复生成结算 | 运行标识由原始字节确定，同摘要复用同一源包与运行 | `app/manifest.py`、`app/store.py` | `tests/test_batch.py::test_same_digest_resend_adds_no_settlement` |
+| TRAP-29 | 切换中途失败 | 新旧版本各留一半 | 单事务切换 + 批次版本号；失败回滚保留旧采用版 | `app/store.py` | `tests/test_batch.py::test_stale_switch_keeps_old_version` |
+| TRAP-30 | 补发包票无法对应 | 直接封存掩盖缺失 | 暂缓封存并列出暂缓票 | `app/close.py` | `tests/test_batch.py::test_unmatched_ticket_blocks_switch` |
 
 ## 对账规则
 

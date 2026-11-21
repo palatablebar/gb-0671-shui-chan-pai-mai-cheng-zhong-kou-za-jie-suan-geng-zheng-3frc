@@ -1,0 +1,99 @@
+{% if batch %}
+<section class="panel batch-panel" data-batch="{{ batch.id }}" data-revision="{{ batch.revision }}" data-sealed="{{ '1' if batch.sealed else '0' }}">
+  <div class="panel__head"><h2>日结批次 {{ batch.id }}</h2><span>{{ batch.status }} · 版本 {{ batch.revision }}</span></div>
+  <div class="batch-summary">
+    <div><small>采用源包</small><b class="mono">{{ batch.adopted_run_id }}</b></div>
+    <div><small>封存源包</small><b class="mono">{{ batch.sealed_run_id or '未封存' }}</b></div>
+    <div><small>封存摘要</small><b class="mono">{{ (batch.seal or '—')[:16] }}</b></div>
+    <div><small>采用版待付</small><b>{{ batch.adopted.balance.due }} CNY</b></div>
+  </div>
+  <div class="scroll"><table class="ledger batch-packages">
+    <thead><tr><th>源包</th><th>运行</th><th>摘要</th><th>状态</th><th>操作</th></tr></thead>
+    <tbody>
+    {% for p in batch.packages %}
+      <tr class="{% if p.adopted %}row-adopted{% endif %}">
+        <td>{{ p.label }}</td>
+        <td class="mono" title="{{ p.run_id }}">{{ p.run_id }}</td>
+        <td class="mono" title="{{ p.digest }}">{{ p.digest[:12] }}</td>
+        <td>
+          {% if p.adopted %}采用中{% endif %}
+          {% if p.rejected %}<span class="tag tag-warn">已退回</span>
+          {% elif p.confirmed %}已确认{% else %}<span class="tag tag-warn">待确认</span>{% endif %}
+        </td>
+        <td class="batch-actions">
+          {% if not p.adopted and not p.confirmed and not p.rejected %}
+          <button class="btn" data-act="confirm" data-package="{{ p.id }}" data-digest="{{ p.digest }}">确认内容</button>
+          {% endif %}
+          {% if not batch.sealed and not p.adopted and p.confirmed and not p.rejected %}
+          <button class="btn primary" data-act="adopt" data-package="{{ p.id }}">采用此版</button>
+          <button class="btn" data-act="reject" data-package="{{ p.id }}">退回</button>
+          {% endif %}
+          {% if p.rejected %}<span class="muted">{{ p.reject_reason }}</span>{% endif %}
+          {% if not p.adopted %}
+          <a class="btn" href="/{{ key }}?run_id={{ p.run_id }}">查看源包</a>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% for item in comparisons %}
+  {% set c = item.comparison %}
+  <div class="compare-block">
+    <div class="compare-head">
+      <strong>{{ item.label }}</strong>
+      <span class="mono">{{ item.package_id }}</span>
+      <span class="tag {{ 'tag-ok' if c.ready else 'tag-warn' }}">{{ '可切换' if c.ready else '暂缓' }}</span>
+      <span>变化 {{ c.changed|length }} · 无法对应 {{ c.held|length }} · 未结算 {{ c.unsettled|length }}</span>
+    </div>
+    {% if c.reasons %}<ul class="compare-reasons">{% for r in c.reasons %}<li>{{ r }}</li>{% endfor %}</ul>{% endif %}
+    <div class="scroll"><table class="ledger">
+      <thead><tr><th>票号</th><th>类型</th><th>原应付</th><th>新应付</th><th>原版本</th><th>新版本</th><th>说明</th></tr></thead>
+      <tbody>
+      {% for row in c.changed %}
+        <tr><td>{{ row.ticket }}</td><td>{{ '修复' if row.repaired else '变化' }}</td>
+          <td class="num">{{ row.amount_before or '—' }}</td><td class="num">{{ row.amount_after }}</td>
+          <td class="num">{{ row.before.version if row.before else row.base_status or '—' }}</td>
+          <td class="num">{{ row.after.version }}</td>
+          <td>{{ '隔离票在补发包中恢复结算' if row.repaired else '结算字段变化' }}</td></tr>
+      {% endfor %}
+      {% for row in c.held %}
+        <tr class="row-held"><td>{{ row.ticket }}</td><td>暂缓</td><td class="num">{{ row.amount_before or '—' }}</td>
+          <td class="num">—</td><td class="num">{{ row.base }}</td><td class="num">{{ row.candidate }}</td>
+          <td>{{ row.detail }}{% if row.candidate_detail %}（{{ row.candidate_detail }}）{% endif %}</td></tr>
+      {% endfor %}
+      {% for row in c.unsettled %}
+        <tr><td>{{ row.ticket }}</td><td>未结算</td><td class="num">—</td><td class="num">—</td>
+          <td class="num">{{ row.base }}</td><td class="num">{{ row.candidate }}</td><td>两版均无应付</td></tr>
+      {% endfor %}
+      {% if not c.changed and not c.held and not c.unsettled %}
+        <tr><td colspan="7">与采用版一致，无票值变化。</td></tr>
+      {% endif %}
+      </tbody>
+    </table></div>
+    {% if c.changed and item.confirmed and not item.rejected %}
+    <details class="compare-detail"><summary>变化票字段对照</summary>
+      {% for row in c.changed %}
+      <table class="ledger field-diff"><thead><tr><th>字段</th><th>采用版</th><th>补发包</th></tr></thead>
+        <tbody>
+        {% for field, value in row.after.items() %}
+          {% if row.before is none or row.before.get(field) != value %}
+          <tr><td>{{ meta.labels.get(field, field) }}</td><td class="num">{{ row.before.get(field) if row.before else '—' }}</td><td class="num">{{ value }}</td></tr>
+          {% endif %}
+        {% endfor %}
+        </tbody>
+      </table>
+      {% endfor %}
+    </details>
+    {% endif %}
+  </div>
+  {% endfor %}
+  <div class="panel__bar">
+    <button class="btn primary" data-act="seal" {% if batch.sealed %}disabled{% endif %}>
+      {{ '已封存' if batch.sealed else '封存当前采用版' }}
+    </button>
+    {% if batch.sealed %}<a class="btn" href="/api/export/{{ batch.sealed_run_id }}">下载日结凭证</a>{% endif %}
+    <span class="muted">同一补发重试不新增结算；切换失败保留旧版。</span>
+  </div>
+</section>
+{% endif %}
